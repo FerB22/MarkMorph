@@ -1,0 +1,8 @@
+{
+  "name": "MarkMorph - Conversor Universal a Markdown",
+  "description": "Convierte archivos EPUB, HTML, Word (.docx), CSV, JSON y TXT en formato Markdown (.md) directamente en tu navegador con vista previa interactiva en tiempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,212 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  code, pre, textarea.font-mono {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+}
+
+/* Comprehensive Markdown Preview Styles */
+.markdown-body {
+  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.65;
+  word-wrap: break-word;
+}
+
+.markdown-body h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid rgba(150, 150, 150, 0.22);
+}
+
+.markdown-body h1:first-child {
+  margin-top: 0;
+}
+
+.markdown-body h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin-top: 1.35rem;
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(150, 150, 150, 0.14);
+}
+
+.markdown-body h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1.15rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-body p {
+  margin-top: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.markdown-body strong {
+  font-weight: 600;
+}
+
+.markdown-body em {
+  font-style: italic;
+}
+
+.markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.6rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.6rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.markdown-body li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Subtle 1px all-around surface for blockquotes (avoiding thick left border) */
+.markdown-body blockquote {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  color: #52525b;
+  border: 1px solid #e4e4e7;
+  background-color: #fafafa;
+  border-radius: 0.5rem;
+  font-style: italic;
+}
+
+.dark .markdown-body blockquote {
+  color: #a1a1aa;
+  border-color: #27272a;
+  background-color: #18181b;
+}
+
+.markdown-body blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body blockquote p:first-child {
+  margin-top: 0;
+}
+
+.markdown-body hr {
+  height: 1px;
+  padding: 0;
+  margin: 1.5rem 0;
+  background-color: rgba(150, 150, 150, 0.22);
+  border: 0;
+}
+
+/* GFM Tables with tabular numerals and explicit column alignments */
+.markdown-body table {
+  width: 100%;
+  margin: 1.25rem 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid #e4e4e7;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.dark .markdown-body table {
+  border-color: #27272a;
+}
+
+.markdown-body th {
+  background-color: #f4f4f5;
+  color: #18181b;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #e4e4e7;
+}
+
+.dark .markdown-body th {
+  background-color: #18181b;
+  color: #f4f4f5;
+  border-color: #27272a;
+}
+
+.markdown-body td {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #e4e4e7;
+}
+
+.dark .markdown-body td {
+  border-color: #27272a;
+}
+
+.markdown-body th[align="right"],
+.markdown-body td[align="right"] {
+  text-align: right;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.8125rem;
+}
+
+.markdown-body th[align="center"],
+.markdown-body td[align="center"] {
+  text-align: center;
+}
+
+.markdown-body tr:nth-child(even) td {
+  background-color: #fafafa;
+}
+
+.dark .markdown-body tr:nth-child(even) td {
+  background-color: #121215;
+}
+
+/* Code blocks and inline code */
+.markdown-body code {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.825em;
+  padding: 0.2em 0.4em;
+  border-radius: 0.35rem;
+  background-color: #f4f4f5;
+  color: #047857;
+}
+
+.dark .markdown-body code {
+  background-color: #18181b;
+  color: #34d399;
+}
+
+.markdown-body pre {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 0.625rem;
+  background-color: #09090b;
+  color: #f4f4f5;
+  border: 1px solid #27272a;
+  overflow-x: auto;
+}
+
+.markdown-body pre code {
+  background-color: transparent !important;
+  color: inherit !important;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.825rem;
+  line-height: 1.55;
+}

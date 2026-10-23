@@ -1,0 +1,6 @@
+{
+  "summary":  "Plan de implementación para MarkMorph, conversor universal de archivos en formato Markdown ejecutado íntegramente en el navegador con soporte optimizado para TXT, HTML, DOCX, EPUB, CSV y JSON, alineación automática de tablas GFM, metadatos YAML normativos y vista dividida con desplazamiento independiente.",
+  "updatedAt":  "2026-10-23T17:41:44.900177437Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
