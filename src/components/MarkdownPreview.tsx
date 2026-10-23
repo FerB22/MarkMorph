@@ -7,7 +7,6 @@ interface MarkdownPreviewProps {
 }
 
 export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ markdown }) => {
-  // Extract and format frontmatter if present for dedicated visual display
   const { frontmatter, bodyMarkdown } = useMemo(() => {
     const fmRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n\r?\n?/;
     const match = markdown.match(fmRegex);
@@ -54,6 +53,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ markdown }) =>
       file_size_kb: 'Tamaño del archivo',
       conversion_date: 'Fecha de conversión',
       author: 'Autor',
+      pages: 'Páginas',
       date: 'Fecha',
       file_size: 'Tamaño',
     };

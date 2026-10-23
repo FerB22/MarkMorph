@@ -2,6 +2,19 @@ import TurndownService from 'turndown';
 import Papa from 'papaparse';
 import * as mammoth from 'mammoth';
 import JSZip from 'jszip';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+
+// Configure PDF.js worker for browser environments
+if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
+      import.meta.url
+    ).toString();
+  } catch {
+    // Fallback if bundler URL resolution is unavailable
+  }
+}
 
 export interface ConversionOptions {
   includeFrontmatter: boolean;
@@ -12,17 +25,29 @@ export interface ConversionOptions {
 
 export interface FileMetadata {
   fileName: string;
-  originalFormat: 'txt' | 'html' | 'docx' | 'csv' | 'json' | 'epub' | string;
+  originalFormat: 'txt' | 'html' | 'docx' | 'csv' | 'json' | 'epub' | 'pdf' | string;
   sizeBytes: number;
   date: string;
   author?: string;
   title?: string;
+  pages?: number;
 }
 
 export interface ConversionResult {
   markdown: string;
   rawConverted: string;
   metadata: FileMetadata;
+}
+
+export interface BatchConversionItem {
+  id: string;
+  fileName: string;
+  markdown: string;
+  rawConverted: string;
+  baselineMarkdown: string;
+  metadata: FileMetadata;
+  status: 'completed' | 'error';
+  errorMessage?: string;
 }
 
 /**
@@ -33,7 +58,6 @@ export function isNumericCell(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed) return false;
 
-  // Strip leading sign, trailing/leading currency symbols, percentages, and common metric units
   const cleaned = trimmed
     .replace(/^[+-]\s*/, '')
     .replace(
@@ -45,7 +69,6 @@ export function isNumericCell(value: string): boolean {
 
   if (!cleaned) return false;
 
-  // Match integers, decimals, or RAE space-grouped numbers (e.g. 45 000, 99,9, 1 250.50)
   return /^\d+(?:[ \u00A0.,]\d+)*$/.test(cleaned);
 }
 
@@ -54,10 +77,7 @@ export function isNumericCell(value: string): boolean {
  * padded headers, and consistent vertical separators.
  */
 export function formatMarkdownTable(headerRow: string[], dataRows: string[][]): string {
-  const maxCols = Math.max(
-    headerRow.length,
-    ...dataRows.map((r) => r.length)
-  );
+  const maxCols = Math.max(headerRow.length, ...dataRows.map((r) => r.length));
   if (maxCols === 0) return '';
 
   const normalizedHeader = [...headerRow];
@@ -73,7 +93,6 @@ export function formatMarkdownTable(headerRow: string[], dataRows: string[][]): 
     return copy;
   });
 
-  // Determine alignment for each column: 'right' if all non-empty data cells are numeric, else 'left'
   const alignments: ('left' | 'right')[] = [];
   for (let col = 0; col < maxCols; col++) {
     const nonEmptyCells = normalizedRows
@@ -85,7 +104,6 @@ export function formatMarkdownTable(headerRow: string[], dataRows: string[][]): 
     alignments.push(isNumericCol ? 'right' : 'left');
   }
 
-  // Compute uniform width for each column (minimum 4 chars to fit :--- or ---:)
   const colWidths: number[] = [];
   for (let col = 0; col < maxCols; col++) {
     const maxDataLen = normalizedRows.reduce(
@@ -95,12 +113,10 @@ export function formatMarkdownTable(headerRow: string[], dataRows: string[][]): 
     colWidths.push(Math.max(4, normalizedHeader[col].length, maxDataLen));
   }
 
-  // Format header row with padding
   const formattedHeaders = normalizedHeader.map((h, col) =>
     alignments[col] === 'right' ? h.padStart(colWidths[col], ' ') : h.padEnd(colWidths[col], ' ')
   );
 
-  // Format separator row with GFM alignment markers (:--- or ---:)
   const separatorCells = colWidths.map((w, col) =>
     alignments[col] === 'right'
       ? '-'.repeat(Math.max(3, w - 1)) + ':'
@@ -141,16 +157,13 @@ export function createTurndownService(options?: Partial<ConversionOptions>): Tur
     strongDelimiter: '**',
   });
 
-  // Remove script, style, and noscript tags cleanly
   service.remove(['script', 'style', 'noscript']);
 
-  // Strikethrough support (GFM)
   service.addRule('strikethrough', {
     filter: ['del', 's'],
     replacement: (content) => `~~${content}~~`,
   });
 
-  // Table rules for HTML tables using aligned GFM generator
   service.addRule('table', {
     filter: ['table'],
     replacement: (_content, node) => {
@@ -229,6 +242,9 @@ export function buildFrontmatter(meta: FileMetadata): string {
   if (meta.author) {
     yaml += `author: "${meta.author.replace(/"/g, '\\"')}"\n`;
   }
+  if (meta.pages !== undefined) {
+    yaml += `pages: ${meta.pages}\n`;
+  }
   yaml += `---\n\n`;
   return yaml;
 }
@@ -253,6 +269,195 @@ export function resolveZipPath(baseDir: string, relativePath: string): string {
 }
 
 /**
+ * Extract structured Markdown from a PDF ArrayBuffer using pdfjs-dist
+ */
+export async function convertPdfToMarkdown(
+  buffer: ArrayBuffer
+): Promise<{ markdown: string; pdfTitle?: string; pdfAuthor?: string; numPages: number }> {
+  try {
+    const data = new Uint8Array(buffer.slice(0));
+    const loadingTask = pdfjsLib.getDocument({
+      data,
+      useSystemFonts: true,
+      isEvalSupported: false,
+    });
+
+    const pdfDoc = await loadingTask.promise;
+    const numPages = pdfDoc.numPages;
+
+    let pdfTitle: string | undefined;
+    let pdfAuthor: string | undefined;
+
+    try {
+      const meta = await pdfDoc.getMetadata();
+      const info = meta?.info as Record<string, unknown> | undefined;
+      if (info) {
+        if (typeof info.Title === 'string' && info.Title.trim()) {
+          pdfTitle = info.Title.trim();
+        }
+        if (typeof info.Author === 'string' && info.Author.trim()) {
+          pdfAuthor = info.Author.trim();
+        }
+      }
+    } catch {
+      // Metadata is optional in PDF documents
+    }
+
+    interface ExtractedLine {
+      y: number;
+      fontSize: number;
+      text: string;
+    }
+
+    const pagesLines: ExtractedLine[][] = [];
+    const fontSizeCounts = new Map<number, number>();
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      const page = await pdfDoc.getPage(pageNum);
+      const textContent = await page.getTextContent();
+
+      interface RawItem {
+        str: string;
+        x: number;
+        y: number;
+        fontSize: number;
+      }
+
+      const rawItems: RawItem[] = [];
+      for (const item of textContent.items) {
+        if ('str' in item && typeof item.str === 'string') {
+          const text = item.str;
+          if (!text.trim()) continue;
+          const transform = item.transform as number[];
+          const x = transform ? transform[4] : 0;
+          const y = transform ? transform[5] : 0;
+          const fontHeight =
+            transform ? Math.round(Math.hypot(transform[0], transform[1]) * 10) / 10 : item.height || 11;
+          const fontSize = fontHeight > 0 ? fontHeight : 11;
+
+          rawItems.push({ str: text, x, y, fontSize });
+
+          const roundedSize = Math.round(fontSize);
+          fontSizeCounts.set(
+            roundedSize,
+            (fontSizeCounts.get(roundedSize) || 0) + text.trim().length
+          );
+        }
+      }
+
+      // Sort items top-to-bottom (descending Y in PDF coordinates), then left-to-right (ascending X)
+      rawItems.sort((a, b) => {
+        if (Math.abs(b.y - a.y) > 3) {
+          return b.y - a.y;
+        }
+        return a.x - b.x;
+      });
+
+      // Group items on the same horizontal line (within 3pt Y tolerance)
+      const lines: ExtractedLine[] = [];
+      for (const item of rawItems) {
+        const lastLine = lines[lines.length - 1];
+        if (lastLine && Math.abs(lastLine.y - item.y) <= 3) {
+          const needsSpace =
+            !lastLine.text.endsWith(' ') &&
+            !item.str.startsWith(' ') &&
+            !/^[.,;:!?)]/.test(item.str);
+          lastLine.text += (needsSpace ? ' ' : '') + item.str;
+          if (item.fontSize > lastLine.fontSize) {
+            lastLine.fontSize = item.fontSize;
+          }
+        } else {
+          lines.push({
+            y: item.y,
+            fontSize: item.fontSize,
+            text: item.str.trim(),
+          });
+        }
+      }
+
+      pagesLines.push(lines);
+    }
+
+    // Determine dominant body font size (most frequent character count)
+    let bodyFontSize = 11;
+    let maxCount = 0;
+    for (const [size, count] of fontSizeCounts.entries()) {
+      if (count > maxCount) {
+        maxCount = count;
+        bodyFontSize = size;
+      }
+    }
+
+    const pageMarkdownSections: string[] = [];
+
+    for (let pIdx = 0; pIdx < pagesLines.length; pIdx++) {
+      const lines = pagesLines[pIdx];
+      if (lines.length === 0) continue;
+
+      const blocks: string[] = [];
+      let currentParagraph: string[] = [];
+
+      const flushParagraph = () => {
+        if (currentParagraph.length > 0) {
+          blocks.push(currentParagraph.join(' '));
+          currentParagraph = [];
+        }
+      };
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const cleanText = line.text.replace(/\s+/g, ' ').trim();
+        if (!cleanText) continue;
+
+        const isH1 = line.fontSize >= bodyFontSize * 1.45;
+        const isH2 = !isH1 && line.fontSize >= bodyFontSize * 1.18;
+        const isBullet = /^(?:[•·\-*]|\d+[.)])\s+/.test(cleanText);
+
+        if (isH1) {
+          flushParagraph();
+          blocks.push(`# ${cleanText.replace(/^#+\s*/, '')}`);
+        } else if (isH2) {
+          flushParagraph();
+          blocks.push(`## ${cleanText.replace(/^#+\s*/, '')}`);
+        } else if (isBullet) {
+          flushParagraph();
+          const normalizedBullet = cleanText.replace(/^[•·*]\s+/, '- ');
+          blocks.push(normalizedBullet);
+        } else {
+          // Check vertical gap to previous line to see if it starts a new paragraph
+          const prevLine = i > 0 ? lines[i - 1] : null;
+          const verticalGap = prevLine ? Math.abs(prevLine.y - line.y) : 0;
+          if (prevLine && verticalGap > line.fontSize * 1.75) {
+            flushParagraph();
+          }
+          currentParagraph.push(cleanText);
+        }
+      }
+
+      flushParagraph();
+
+      if (blocks.length > 0) {
+        pageMarkdownSections.push(blocks.join('\n\n'));
+      }
+    }
+
+    const finalMd =
+      pageMarkdownSections.join('\n\n---\n\n').trim() ||
+      '*[Documento PDF sin texto extraíble]*';
+
+    return {
+      markdown: finalMd,
+      pdfTitle,
+      pdfAuthor,
+      numPages,
+    };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
+    throw new Error('No se pudo extraer el contenido del archivo PDF. Detalle: ' + errorMsg);
+  }
+}
+
+/**
  * Convert EPUB ArrayBuffer to clean Markdown
  */
 export async function convertEpubToMarkdown(
@@ -261,7 +466,6 @@ export async function convertEpubToMarkdown(
 ): Promise<{ markdown: string; bookTitle?: string; bookAuthor?: string }> {
   const zip = await JSZip.loadAsync(buffer);
 
-  // 1. Locate package OPF file via META-INF/container.xml
   let opfPath = '';
   const containerXml = zip.file('META-INF/container.xml');
   if (containerXml) {
@@ -272,13 +476,11 @@ export async function convertEpubToMarkdown(
     }
   }
 
-  // Fallback: search any .opf in the zip
   if (!opfPath) {
     const opfKey = Object.keys(zip.files).find((k) => k.toLowerCase().endsWith('.opf'));
     if (opfKey) opfPath = opfKey;
   }
 
-  // If no OPF found, extract any HTML/XHTML files sorted
   if (!opfPath || !zip.file(opfPath)) {
     const htmlFiles = Object.keys(zip.files)
       .filter((k) => /\.(xhtml|html|htm)$/i.test(k) && !zip.files[k].dir)
@@ -303,7 +505,6 @@ export async function convertEpubToMarkdown(
   const opfText = await zip.file(opfPath)!.async('text');
   const opfDir = opfPath.includes('/') ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1) : '';
 
-  // Extract metadata
   let bookTitle: string | undefined;
   let bookAuthor: string | undefined;
 
@@ -313,7 +514,6 @@ export async function convertEpubToMarkdown(
   const authorMatch = opfText.match(/<dc:creator[^>]*>([^<]+)<\/dc:creator>/i);
   if (authorMatch) bookAuthor = authorMatch[1].trim();
 
-  // Extract manifest (id -> href)
   const manifest = new Map<string, string>();
   const itemRegex = /<item\b[^>]*>/gi;
   let match: RegExpExecArray | null;
@@ -326,14 +526,12 @@ export async function convertEpubToMarkdown(
     }
   }
 
-  // Extract spine reading order
   const spineIds: string[] = [];
   const itemrefRegex = /<itemref\b[^>]*\bidref=["']([^"']+)["'][^>]*>/gi;
   while ((match = itemrefRegex.exec(opfText)) !== null) {
     spineIds.push(match[1]);
   }
 
-  // Determine file order
   const hrefOrder: string[] = [];
   if (spineIds.length > 0) {
     for (const id of spineIds) {
@@ -515,9 +713,10 @@ export async function convertDocxToMarkdown(
 export function detectFormat(
   fileName: string,
   mimeType?: string
-): 'txt' | 'html' | 'docx' | 'csv' | 'json' | 'epub' | 'unknown' {
+): 'txt' | 'html' | 'docx' | 'csv' | 'json' | 'epub' | 'pdf' | 'unknown' {
   const ext = fileName.split('.').pop()?.toLowerCase();
 
+  if (ext === 'pdf') return 'pdf';
   if (ext === 'md' || ext === 'markdown') return 'txt';
   if (ext === 'txt' || ext === 'text' || ext === 'log') return 'txt';
   if (ext === 'html' || ext === 'htm' || ext === 'xhtml') return 'html';
@@ -527,6 +726,7 @@ export function detectFormat(
   if (ext === 'json') return 'json';
 
   if (mimeType) {
+    if (mimeType.includes('application/pdf')) return 'pdf';
     if (mimeType.includes('epub')) return 'epub';
     if (mimeType.includes('text/html')) return 'html';
     if (mimeType.includes('text/csv')) return 'csv';
@@ -536,6 +736,27 @@ export function detectFormat(
   }
 
   return 'unknown';
+}
+
+/**
+ * Package multiple converted Markdown documents into a single .zip archive (Uint8Array)
+ */
+export async function createBatchZipBuffer(
+  items: { fileName: string; markdown: string }[]
+): Promise<Uint8Array> {
+  const zip = new JSZip();
+  const usedNames = new Map<string, number>();
+
+  for (const item of items) {
+    const baseName = item.fileName.replace(/\.[^/.]+$/, '') || 'documento';
+    const count = usedNames.get(baseName.toLowerCase()) || 0;
+    usedNames.set(baseName.toLowerCase(), count + 1);
+
+    const finalMdName = count === 0 ? `${baseName}.md` : `${baseName}_${count + 1}.md`;
+    zip.file(finalMdName, item.markdown);
+  }
+
+  return await zip.generateAsync({ type: 'uint8array' });
 }
 
 /**
@@ -551,7 +772,7 @@ export async function processFileConversion(
 
   if (format === 'unknown') {
     throw new Error(
-      `Formato de archivo no compatible («.${file.name.split('.').pop()}»). Los formatos admitidos son los siguientes: .txt, .html, .docx, .epub, .csv y .json.`
+      `Formato de archivo no compatible («.${file.name.split('.').pop()}»). Los formatos admitidos son los siguientes: .pdf, .txt, .html, .docx, .epub, .csv y .json.`
     );
   }
 
@@ -564,7 +785,27 @@ export async function processFileConversion(
 
   let rawMarkdown = '';
 
-  if (format === 'docx') {
+  if (format === 'pdf') {
+    options.onProgress?.(40, 'Analizando páginas y tipografía del documento PDF...');
+    let buffer: ArrayBuffer;
+    if ('content' in file && file.content instanceof ArrayBuffer) {
+      buffer = file.content;
+    } else if ('arrayBuffer' in file && typeof (file as File).arrayBuffer === 'function') {
+      buffer = await (file as File).arrayBuffer();
+    } else {
+      throw new Error('El archivo PDF requiere un búfer binario válido.');
+    }
+    options.onProgress?.(70, 'Estructurando encabezados, listas y párrafos desde PDF...');
+    const pdfRes = await convertPdfToMarkdown(buffer);
+    rawMarkdown = pdfRes.markdown;
+    metadata.pages = pdfRes.numPages;
+    if (pdfRes.pdfTitle) {
+      metadata.title = pdfRes.pdfTitle;
+    }
+    if (pdfRes.pdfAuthor) {
+      metadata.author = pdfRes.pdfAuthor;
+    }
+  } else if (format === 'docx') {
     options.onProgress?.(40, 'Extrayendo jerarquía semántica del documento Word (.docx)...');
     let buffer: ArrayBuffer;
     if ('content' in file && file.content instanceof ArrayBuffer) {

@@ -8,6 +8,8 @@ import {
   convertJsonToMarkdown,
   convertDocxToMarkdown,
   convertEpubToMarkdown,
+  convertPdfToMarkdown,
+  createBatchZipBuffer,
   resolveZipPath,
   detectFormat,
   buildFrontmatter,
@@ -16,7 +18,7 @@ import {
   formatNumberRAE,
   isNumericCell,
 } from './converters.ts';
-import { createSampleDocxBuffer } from './samples.ts';
+import { createSampleDocxBuffer, createSamplePdfBuffer } from './samples.ts';
 
 test('formatBytes formats file sizes correctly with RAE space before unit', () => {
   assert.equal(formatBytes(0), '0 B');
@@ -45,7 +47,8 @@ test('isNumericCell detects numbers, RAE-spaced numbers, percentages, and curren
   assert.equal(isNumericCell('Licencia profesional'), false);
 });
 
-test('detectFormat detects supported extensions', () => {
+test('detectFormat detects supported extensions including PDF', () => {
+  assert.equal(detectFormat('manual.pdf'), 'pdf');
   assert.equal(detectFormat('documento.txt'), 'txt');
   assert.equal(detectFormat('pagina.html'), 'html');
   assert.equal(detectFormat('reporte.docx'), 'docx');
@@ -98,7 +101,6 @@ test('convertCsvToMarkdown aligns text columns left (:---) and numeric columns r
   const md = convertCsvToMarkdown(csv);
   const lines = md.split('\n');
   assert.equal(lines.length, 4);
-  // First column is text (:---), second and third are numeric (---:)
   assert.match(lines[1], /^\|\s*:-+\s*\|\s*-+:\s*\|\s*-+:\s*\|$/);
   assert.match(md, /Portátil/);
   assert.match(md, /1200 \$/);
@@ -121,7 +123,10 @@ test('buildFrontmatter produces valid YAML frontmatter with title, original_form
     date: '2026-10-23 10:00:00',
   };
   const frontmatter = buildFrontmatter(meta);
-  assert.match(frontmatter, /^---\ntitle: "balance_2026\.csv"\noriginal_format: "CSV"\nfile_size_kb: 2\nconversion_date: "2026-10-23 10:00:00"\n---\n\n$/);
+  assert.match(
+    frontmatter,
+    /^---\ntitle: "balance_2026\.csv"\noriginal_format: "CSV"\nfile_size_kb: 2\nconversion_date: "2026-10-23 10:00:00"\n---\n\n$/
+  );
 });
 
 test('applyFrontmatterToggle adds and removes frontmatter cleanly while preserving edits', () => {
@@ -196,4 +201,30 @@ test('convertEpubToMarkdown extracts chapters and metadata from EPUB buffer', as
   assert.match(result.markdown, /# Primer capítulo/);
   assert.match(result.markdown, /## Segundo capítulo/);
   assert.match(result.markdown, /\*\*EPUB\*\*/);
+});
+
+test('convertPdfToMarkdown extracts structured headings, paragraphs, and lists from PDF buffer', async () => {
+  const buffer = await createSamplePdfBuffer();
+  const result = await convertPdfToMarkdown(buffer);
+
+  assert.equal(result.numPages, 1);
+  assert.equal(result.pdfTitle, 'Informe tecnico de arquitectura PDF');
+  assert.match(result.markdown, /# Informe tecnico de arquitectura PDF/);
+  assert.match(result.markdown, /## Metricas de rendimiento verificadas/);
+  assert.match(result.markdown, /- Procesamiento de 35 000 palabras en menos de 120 ms/);
+});
+
+test('createBatchZipBuffer packages multiple converted markdown files into a valid ZIP archive', async () => {
+  const zipBytes = await createBatchZipBuffer([
+    { fileName: 'informe.pdf', markdown: '# Informe 1' },
+    { fileName: 'informe.docx', markdown: '# Informe 2 (mismo nombre base)' },
+    { fileName: 'datos.csv', markdown: '| A | B |\n| :--- | :--- |\n| 1 | 2 |' },
+  ]);
+
+  const loadedZip = await JSZip.loadAsync(zipBytes);
+  const fileNames = Object.keys(loadedZip.files);
+  assert.deepEqual(fileNames.sort(), ['datos.md', 'informe.md', 'informe_2.md']);
+
+  const firstContent = await loadedZip.file('informe.md')!.async('string');
+  assert.equal(firstContent, '# Informe 1');
 });

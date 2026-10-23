@@ -7,6 +7,8 @@ import {
   Braces,
   FileBadge2,
   BookOpen,
+  FileSearch,
+  FolderArchive,
   ArrowRight,
   CheckCircle2,
   SlidersHorizontal,
@@ -14,8 +16,9 @@ import {
 import { SAMPLE_FILES, SampleFile } from '../utils/samples.ts';
 
 interface DropzoneProps {
-  onFileSelect: (file: File) => void;
+  onFilesSelect: (files: File[]) => void;
   onSampleSelect: (sample: SampleFile) => void;
+  onBatchSampleSelect: () => void;
   includeFrontmatter: boolean;
   onToggleFrontmatter: (val: boolean) => void;
   isProcessing: boolean;
@@ -24,8 +27,9 @@ interface DropzoneProps {
 }
 
 export const Dropzone: React.FC<DropzoneProps> = ({
-  onFileSelect,
+  onFilesSelect,
   onSampleSelect,
+  onBatchSampleSelect,
   includeFrontmatter,
   onToggleFrontmatter,
   isProcessing,
@@ -53,18 +57,19 @@ export const Dropzone: React.FC<DropzoneProps> = ({
     setIsDragOver(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      onFileSelect(e.dataTransfer.files[0]);
+      onFilesSelect(Array.from(e.dataTransfer.files));
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      onFileSelect(e.target.files[0]);
+      onFilesSelect(Array.from(e.target.files));
       e.target.value = '';
     }
   };
 
   const formats = [
+    { ext: '.pdf', name: 'PDF', icon: FileSearch, desc: 'Títulos y párrafos con pdfjs-dist' },
     { ext: '.epub', name: 'EPUB', icon: BookOpen, desc: 'Capítulos XHTML y manifiesto OPF' },
     { ext: '.docx', name: 'Word', icon: FileBadge2, desc: 'Jerarquía semántica con Mammoth' },
     { ext: '.html', name: 'HTML', icon: FileCode, desc: 'Etiquetas limpias con Turndown' },
@@ -78,22 +83,22 @@ export const Dropzone: React.FC<DropzoneProps> = ({
       {/* Intro Hero */}
       <div className="text-center mb-7">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-400 mb-2.5">
-          Ejecución 100 % en el cliente · CommonMark y GitHub Flavored Markdown
+          Ejecución 100 % en el cliente · Conversión individual o por lotes (.zip)
         </p>
         <h1 className="text-2xl sm:text-4xl font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">
-          Convierte cualquier documento en{' '}
+          Convierte uno o varios documentos en{' '}
           <span className="text-emerald-600 dark:text-emerald-400">Markdown estructurado</span>
         </h1>
         <p className="mt-2.5 text-sm sm:text-base text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
-          Arrastra tus archivos EPUB, Word (.docx), HTML, CSV, JSON o TXT para transformarlos al instante sin enviar datos a servidores externos.
+          Arrastra simultáneamente hasta 10 o más archivos PDF, EPUB, Word (.docx), HTML, CSV, JSON o TXT y descárgalos de forma individual o en un único archivo comprimido <code className="font-mono text-xs">.zip</code>.
         </p>
       </div>
 
-      {/* Main Drag & Drop Zone */}
+      {/* Main Drag & Drop Zone (Supports Single & Multiple Files) */}
       <div
         role="button"
         tabIndex={0}
-        aria-label="Zona para arrastrar y soltar archivos o explorar en el equipo"
+        aria-label="Zona para arrastrar y soltar uno o varios archivos simultáneamente"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -113,7 +118,8 @@ export const Dropzone: React.FC<DropzoneProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".epub,.docx,.txt,.html,.htm,.xhtml,.csv,.tsv,.json,.md"
+          multiple
+          accept=".pdf,.epub,.docx,.txt,.html,.htm,.xhtml,.csv,.tsv,.json,.md"
           onChange={handleInputChange}
           className="hidden"
           disabled={isProcessing}
@@ -132,26 +138,27 @@ export const Dropzone: React.FC<DropzoneProps> = ({
 
           <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
             {isDragOver
-              ? '¡Suelta el archivo para iniciar la conversión!'
-              : 'Arrastra y suelta tu archivo aquí'}
+              ? '¡Suelta los archivos para iniciar la conversión por lotes!'
+              : 'Arrastra y suelta aquí uno o varios archivos a la vez'}
           </h2>
           <p className="mt-1.5 text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
             o{' '}
             <span className="font-semibold text-emerald-600 dark:text-emerald-400 underline underline-offset-4">
-              haz clic para seleccionar un documento
+              haz clic para seleccionar múltiples documentos
             </span>{' '}
-            desde tu dispositivo
+            desde tu equipo
           </p>
 
           {/* Clean typographic format list */}
-          <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800/80 w-full max-w-xl">
+          <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800/80 w-full max-w-2xl">
             <p className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
-              Formatos admitidos: <strong className="text-zinc-800 dark:text-zinc-200">.txt</strong> ·{' '}
-              <strong className="text-zinc-800 dark:text-zinc-200">.html</strong> ·{' '}
+              Formatos admitidos: <strong className="text-zinc-800 dark:text-zinc-200">.pdf</strong> ·{' '}
               <strong className="text-zinc-800 dark:text-zinc-200">.docx</strong> ·{' '}
               <strong className="text-zinc-800 dark:text-zinc-200">.epub</strong> ·{' '}
+              <strong className="text-zinc-800 dark:text-zinc-200">.html</strong> ·{' '}
               <strong className="text-zinc-800 dark:text-zinc-200">.csv</strong> ·{' '}
-              <strong className="text-zinc-800 dark:text-zinc-200">.json</strong>
+              <strong className="text-zinc-800 dark:text-zinc-200">.json</strong> ·{' '}
+              <strong className="text-zinc-800 dark:text-zinc-200">.txt</strong>
             </p>
           </div>
 
@@ -163,7 +170,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({
             >
               <div className="flex items-center justify-between text-xs font-medium mb-1.5">
                 <span className="text-zinc-700 dark:text-zinc-300 truncate pr-2">
-                  {progressStage || 'Procesando archivo...'}
+                  {progressStage || 'Procesando archivos...'}
                 </span>
                 <span className="font-mono tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
                   {progressPercent} %
@@ -174,7 +181,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({
                 aria-valuenow={progressPercent}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label="Progreso de conversión del archivo"
+                aria-label="Progreso de conversión de archivos"
                 className="w-full h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"
               >
                 <div
@@ -198,7 +205,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({
               Incluir bloque de metadatos (frontmatter YAML)
             </h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Inserta al inicio las propiedades <code className="font-mono text-[11px]">title</code>,{' '}
+              Inserta al inicio de cada archivo las propiedades <code className="font-mono text-[11px]">title</code>,{' '}
               <code className="font-mono text-[11px]">original_format</code>,{' '}
               <code className="font-mono text-[11px]">file_size_kb</code> y{' '}
               <code className="font-mono text-[11px]">conversion_date</code> delimitadas por{' '}
@@ -220,18 +227,25 @@ export const Dropzone: React.FC<DropzoneProps> = ({
         </label>
       </div>
 
-      {/* Quick Test Samples (All 6 formats) */}
+      {/* Quick Test Samples + Batch Demo Action */}
       <div className="mt-8">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-            Muestras interactivas para probar los 6 formatos al instante
-          </h3>
-          <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline">
-            Haz clic en cualquier tarjeta para cargar y convertir
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              Muestras interactivas para probar los 7 formatos o el modo por lotes
+            </h3>
+          </div>
+          <button
+            onClick={onBatchSampleSelect}
+            disabled={isProcessing}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
+          >
+            <FolderArchive className="w-3.5 h-3.5" />
+            <span>Probar lote de 5 archivos simultáneos (.zip)</span>
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {SAMPLE_FILES.map((sample) => (
             <button
               key={sample.id}
@@ -261,7 +275,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({
 
       {/* Technical Architecture & Format Capabilities Grid */}
       <div className="mt-8 pt-7 border-t border-zinc-200 dark:border-zinc-800">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
           {formats.map((fmt) => {
             const Icon = fmt.icon;
             return (
@@ -286,22 +300,22 @@ export const Dropzone: React.FC<DropzoneProps> = ({
           <div className="flex gap-2.5 items-start">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              <strong className="text-zinc-900 dark:text-zinc-200">Tablas CSV alineadas:</strong>{' '}
-              detecta cifras, importes y porcentajes para alinearlos a la derecha (<code className="font-mono">---:</code>) y el texto a la izquierda (<code className="font-mono">:---</code>).
+              <strong className="text-zinc-900 dark:text-zinc-200">Conversión por lotes (.zip):</strong>{' '}
+              procesa 5, 10 o más documentos simultáneamente, edítalos por separado y descárgalos en un único archivo comprimido.
             </p>
           </div>
           <div className="flex gap-2.5 items-start">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              <strong className="text-zinc-900 dark:text-zinc-200">Vista dividida independiente:</strong>{' '}
-              edita el código fuente a la izquierda y examina el documento renderizado a la derecha con desplazamiento vertical autónomo.
+              <strong className="text-zinc-900 dark:text-zinc-200">Extracción PDF con pdfjs-dist:</strong>{' '}
+              analiza las coordenadas y el tamaño tipográfico de cada página para reconstruir títulos, listas y párrafos.
             </p>
           </div>
           <div className="flex gap-2.5 items-start">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              <strong className="text-zinc-900 dark:text-zinc-200">Privacidad garantizada:</strong>{' '}
-              los documentos se procesan mediante FileReader y ArrayBuffer en la memoria local sin tráfico de red.
+              <strong className="text-zinc-900 dark:text-zinc-200">Métricas en vivo bajo el editor:</strong>{' '}
+              recuento instantáneo de palabras, caracteres con y sin espacios, líneas y tiempo estimado de lectura.
             </p>
           </div>
         </div>

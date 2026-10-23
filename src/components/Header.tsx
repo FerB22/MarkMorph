@@ -7,6 +7,7 @@ interface HeaderProps {
   includeFrontmatter: boolean;
   onToggleFrontmatter: (val: boolean) => void;
   hasActiveFile: boolean;
+  batchCount?: number;
   onNewConversion?: () => void;
 }
 
@@ -16,6 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   includeFrontmatter,
   onToggleFrontmatter,
   hasActiveFile,
+  batchCount = 0,
   onNewConversion,
 }) => {
   return (
@@ -35,11 +37,11 @@ export const Header: React.FC<HeaderProps> = ({
                 /
               </span>
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 truncate">
-                Conversor universal en Markdown
+                Conversor universal y por lotes en Markdown
               </span>
             </div>
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 hidden md:block">
-              TXT · HTML · DOCX · EPUB · CSV · JSON — CommonMark y GFM
+              PDF · DOCX · EPUB · HTML · CSV · JSON · TXT — Procesamiento individual o en lote (.zip)
             </p>
           </div>
         </div>
@@ -63,13 +65,13 @@ export const Header: React.FC<HeaderProps> = ({
             <span>Incluir frontmatter YAML</span>
           </label>
 
-          {/* New file action when editor is active */}
+          {/* New file / Reset batch action when editor is active */}
           {hasActiveFile && onNewConversion && (
             <button
               onClick={onNewConversion}
               className="text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-emerald-400 dark:hover:border-emerald-700 transition-colors whitespace-nowrap"
             >
-              Nuevo archivo
+              {batchCount > 1 ? 'Nuevo lote' : 'Nuevo archivo'}
             </button>
           )}
 

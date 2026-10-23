@@ -3,11 +3,70 @@ import JSZip from 'jszip';
 export interface SampleFile {
   id: string;
   name: string;
-  format: 'html' | 'csv' | 'json' | 'txt' | 'docx' | 'epub';
+  format: 'pdf' | 'html' | 'csv' | 'json' | 'txt' | 'docx' | 'epub';
   label: string;
   description: string;
   content?: string;
   getContent?: () => Promise<ArrayBuffer>;
+}
+
+/**
+ * Generates a specification-compliant PDF 1.4 binary buffer in memory
+ * containing H1/H2 headings, paragraphs, and bullet list items.
+ */
+export async function createSamplePdfBuffer(): Promise<ArrayBuffer> {
+  const streamContent = [
+    'BT',
+    '/F2 18 Tf',
+    '50 720 Td',
+    '(Informe tecnico de arquitectura PDF) Tj',
+    '/F1 11 Tf',
+    '0 -28 Td',
+    '(Este documento PDF se analiza localmente mediante pdfjs-dist extrayendo jerarquias tipograficas.) Tj',
+    '0 -16 Td',
+    '(El motor agrupa las coordenadas verticales y detecta el cuerpo de letra dominante.) Tj',
+    '/F2 14 Tf',
+    '0 -30 Td',
+    '(Metricas de rendimiento verificadas) Tj',
+    '/F1 11 Tf',
+    '0 -22 Td',
+    '(- Procesamiento de 35 000 palabras en menos de 120 ms) Tj',
+    '0 -18 Td',
+    '(- Retencion del 100 % de la privacidad en el navegador del cliente) Tj',
+    '0 -18 Td',
+    '(- Exportacion combinada en contenedores comprimidos .zip) Tj',
+    'ET',
+  ].join('\n');
+
+  const objects: string[] = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>\nendobj\n',
+    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n',
+    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n',
+    `6 0 obj\n<< /Length ${streamContent.length} >>\nstream\n${streamContent}\nendstream\nendobj\n`,
+    '7 0 obj\n<< /Title (Informe tecnico de arquitectura PDF) /Author (Equipo de ingenieria MarkMorph) >>\nendobj\n',
+  ];
+
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [];
+
+  for (const obj of objects) {
+    offsets.push(pdf.length);
+    pdf += obj;
+  }
+
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (const offset of offsets) {
+    pdf += `${offset.toString().padStart(10, '0')} 00000 n \n`;
+  }
+
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info 7 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+
+  const encoder = new TextEncoder();
+  return encoder.encode(pdf).buffer;
 }
 
 export async function createSampleDocxBuffer(): Promise<ArrayBuffer> {
@@ -130,6 +189,14 @@ export async function createSampleEpubBuffer(): Promise<ArrayBuffer> {
 
 export const SAMPLE_FILES: SampleFile[] = [
   {
+    id: 'sample-pdf',
+    name: 'informe_arquitectura.pdf',
+    format: 'pdf',
+    label: 'De PDF a Markdown',
+    description: 'Extracción de títulos, listas y párrafos con pdfjs-dist',
+    getContent: createSamplePdfBuffer,
+  },
+  {
     id: 'sample-csv',
     name: 'ventas_trimestrales.csv',
     format: 'csv',
@@ -221,21 +288,21 @@ export const SAMPLE_FILES: SampleFile[] = [
     description: 'Estructura JSON formateada con resaltado',
     content: `{
   "app": "MarkMorph",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "settings": {
     "theme": "system",
     "includeFrontmatter": true,
-    "lineWrapping": true,
-    "supportedFormats": ["txt", "html", "docx", "epub", "csv", "json"]
+    "batchProcessing": true,
+    "supportedFormats": ["pdf", "txt", "html", "docx", "epub", "csv", "json"]
   },
   "author": {
     "name": "Equipo editorial",
     "license": "MIT"
   },
   "features": [
-    "Conversión en el cliente sin subidas a servidores",
-    "Tablas GFM con alineación numérica automática",
-    "Edición bidireccional y exportación instantánea"
+    "Conversión por lotes y descarga en contenedor .zip",
+    "Extracción estructurada de documentos PDF con pdfjs-dist",
+    "Estadísticas de palabras y caracteres en vivo bajo el editor"
   ]
 }`,
   },
@@ -250,12 +317,12 @@ Fecha: 23 de octubre de 2026
 Participantes: equipos de diseño, desarrollo y calidad
 
 PUNTOS CLAVE
-1. Validar la respuesta del arrastre de archivos en navegadores modernos.
-2. Asegurar que las tablas generadas respeten el formato estándar de GitHub Flavored Markdown.
-3. Proporcionar confirmación visual inmediata al copiar en el portapapeles.
+1. Validar la conversión por lotes de múltiples archivos simultáneos.
+2. Asegurar la extracción limpia de títulos y listas desde archivos PDF.
+3. Mostrar el contador de palabras, caracteres y líneas bajo el editor.
 
 ACCIONES INMEDIATAS
-- Revisar la compatibilidad con archivos DOCX de Word 2016 o superior.
+- Revisar la descarga combinada en archivo .zip.
 - Mantener el desplazamiento independiente entre el editor y la vista previa.`,
   },
 ];
